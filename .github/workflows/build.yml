@@ -1,3 +1,4 @@
+
 name: Build VoxyLite
 
 on:
@@ -28,19 +29,38 @@ jobs:
           mkdir project
           unzip -q VoxyLite-1.21.1-GitHub-Actions.zip -d project
 
+      - name: Encontrar proyecto Gradle
+        run: |
+          SETTINGS=$(find project -type f -name "settings.gradle" -o -name "settings.gradle.kts" | head -n 1)
+          if [ -z "$SETTINGS" ]; then
+            echo "No se encontró settings.gradle"
+            find project -maxdepth 4 -type f | head -100
+            exit 1
+          fi
+
+          PROJECT_DIR=$(dirname "$SETTINGS")
+          echo "Proyecto encontrado en: $PROJECT_DIR"
+          echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
+
       - name: Instalar Gradle
         uses: gradle/actions/setup-gradle@v4
 
       - name: Compilar VoxyLite
-        working-directory: project
         run: |
+          cd "$PROJECT_DIR"
           gradle wrapper --gradle-version 8.10.2
           chmod +x gradlew
           ./gradlew build --no-daemon
+
+      - name: Preparar JAR
+        run: |
+          mkdir -p artifacts
+          find "$PROJECT_DIR/build/libs" -type f -name "*.jar" -not -name "*-sources.jar" -exec cp {} artifacts/ \;
+          ls -lah artifacts
 
       - name: Subir JAR
         uses: actions/upload-artifact@v4
         with:
           name: VoxyLite-1.21.1-Fabric
-          path: project/build/libs/*.jar
+          path: artifacts/*.jar
           if-no-files-found: error
